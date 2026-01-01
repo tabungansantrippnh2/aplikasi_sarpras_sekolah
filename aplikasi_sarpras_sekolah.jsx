@@ -1,3 +1,4 @@
+"use client";
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,15 +53,15 @@ export default function AplikasiSarprasSekolah() {
     if (u) setUser(JSON.parse(u));
     const data = localStorage.getItem("sarpras");
     if (data) {
-      const parsed: Item[] = JSON.parse(data);
+      const parsed: ItemUI[] = JSON.parse(data);
       setItems(parsed);
       setItemsUI(parsed);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("sarpras", JSON.stringify(items));
-  }, [items]);
+    localStorage.setItem("sarpras", JSON.stringify(itemsUI));
+  }, [itemsUI]);
 
   const handleLogin = () => {
     const found = Object.values(usersDefault).find(
@@ -92,16 +93,6 @@ export default function AplikasiSarprasSekolah() {
     URL.revokeObjectURL(url);
   };
 
-  const importExcel = async (file: File) => {
-    const XLSX = await import("xlsx");
-    const data = await file.arrayBuffer();
-    const wb = XLSX.read(data);
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const json: Item[] = XLSX.utils.sheet_to_json(ws);
-    setItems(json);
-    setItemsUI(json);
-  };
-
   const exportPDF = async (data: ItemUI[], filename: string) => {
     if (data.length === 0) return alert("Data kosong");
     const jsPDF = (await import("jspdf")).default;
@@ -123,39 +114,21 @@ export default function AplikasiSarprasSekolah() {
   };
 
   const simpanItem = () => {
-    if (!form.nama || !form.jumlah) return;
-    const data: Item = {
+    if (!form.nama || form.jumlah <= 0) return;
+    const data: ItemUI = {
       id: editId ?? Date.now(),
-      kode: form.kode,
-      nama: form.nama,
-      jumlah: Number(form.jumlah),
-      kondisi: form.kondisi,
-      lokasi: form.lokasi,
-      kategori: form.kategori,
-      asal: form.asal,
-      tahun: form.tahun
+      ...form,
+      jumlah: Number(form.jumlah)
     };
 
     if (editId !== null) {
-      setItems(items.map(i => (i.id === editId ? data : i)));
-      setItemsUI(itemsUI.map(i => (i.id === editId ? { ...data, foto: form.foto } : i)));
+      setItemsUI(itemsUI.map(i => (i.id === editId ? data : i)));
       setEditId(null);
     } else {
-      setItems([...items, data]);
-      setItemsUI([...itemsUI, { ...data, foto: form.foto }]);
+      setItemsUI([...itemsUI, data]);
     }
 
-    setForm({
-      kode: "",
-      nama: "",
-      jumlah: 0,
-      kondisi: "Baik",
-      lokasi: "",
-      kategori: "",
-      asal: "",
-      tahun: "",
-      foto: ""
-    });
+    setForm({ kode: "", nama: "", jumlah: 0, kondisi: "Baik", lokasi: "", kategori: "", asal: "", tahun: "", foto: "" });
   };
 
   const editItem = (item: ItemUI) => {
@@ -167,7 +140,6 @@ export default function AplikasiSarprasSekolah() {
   const hapusItem = (id: number) => {
     if (user.role !== "admin") return;
     if (!confirm("Yakin hapus data ini?")) return;
-    setItems(items.filter(i => i.id !== id));
     setItemsUI(itemsUI.filter(i => i.id !== id));
   };
 
@@ -178,11 +150,11 @@ export default function AplikasiSarprasSekolah() {
 
   const rekap = kondisiList.map(k => ({
     kondisi: k,
-    jumlah: items.filter(i => i.kondisi === k).length,
+    jumlah: itemsUI.filter(i => i.kondisi === k).length,
     warna: k === "Baik" ? "#16a34a" : k === "Rusak Ringan" ? "#facc15" : "#dc2626"
   }));
 
-  const grafikKategori = Object.values(items.reduce((a: any, i) => {
+  const grafikKategori = Object.values(itemsUI.reduce((a: any, i) => {
     if (!i.kategori) return a;
     a[i.kategori] = a[i.kategori]
       ? { kategori: i.kategori, jumlah: a[i.kategori].jumlah + i.jumlah }
@@ -190,7 +162,7 @@ export default function AplikasiSarprasSekolah() {
     return a;
   }, {}));
 
-  const grafikLokasi = Object.values(items.reduce((a: any, i) => {
+  const grafikLokasi = Object.values(itemsUI.reduce((a: any, i) => {
     if (!i.lokasi) return a;
     a[i.lokasi] = a[i.lokasi]
       ? { lokasi: i.lokasi, jumlah: a[i.lokasi].jumlah + i.jumlah }
@@ -249,8 +221,8 @@ export default function AplikasiSarprasSekolah() {
 
       <div className="flex flex-col md:flex-row gap-2">
         <Input placeholder="Cari barang..." value={search} onChange={e => setSearch(e.target.value)} />
-        <Button onClick={() => exportExcel(dataFilter, "laporan_sarpras_filtered.xlsx")}>Excel</Button>
-        <Button onClick={() => exportPDF(dataFilter, "laporan_sarpras_filtered.pdf")}>PDF</Button>
+        <Button onClick={() => exportExcel(dataFilter, "laporan_sarpras.xlsx")}>Excel</Button>
+        <Button onClick={() => exportPDF(dataFilter, "laporan_sarpras.pdf")}>PDF</Button>
       </div>
 
       <Card className="bg-white/80 backdrop-blur shadow-md">
@@ -299,9 +271,7 @@ export default function AplikasiSarprasSekolah() {
         <ResponsiveContainer width="100%" height={200}>
           <PieChart>
             <Pie data={rekap} dataKey="jumlah" nameKey="kondisi" label>
-              {rekap.map((d, i) => (
-                <Cell key={i} fill={d.warna} />
-              ))}
+              {rekap.map((d, i) => <Cell key={i} fill={d.warna} />)}
             </Pie>
             <Tooltip />
           </PieChart>
@@ -312,9 +282,7 @@ export default function AplikasiSarprasSekolah() {
             <YAxis />
             <Tooltip />
             <Bar dataKey="jumlah">
-              {grafikKategori.map((_, i) => (
-                <Cell key={i} fill={["#2563eb", "#1d4ed8", "#60a5fa", "#3b82f6"][i % 4]} />
-              ))}
+              {grafikKategori.map((_, i) => <Cell key={i} fill={["#2563eb", "#1d4ed8", "#60a5fa", "#3b82f6"][i % 4]} />)}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -324,9 +292,7 @@ export default function AplikasiSarprasSekolah() {
             <YAxis />
             <Tooltip />
             <Bar dataKey="jumlah">
-              {grafikLokasi.map((_, i) => (
-                <Cell key={i} fill={["#0ea5e9", "#38bdf8", "#7dd3fc", "#0284c7"][i % 4]} />
-              ))}
+              {grafikLokasi.map((_, i) => <Cell key={i} fill={["#0ea5e9", "#38bdf8", "#7dd3fc", "#0284c7"][i % 4]} />)}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
